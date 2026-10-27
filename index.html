@@ -1,0 +1,801 @@
+<!DOCTYPE html>
+<html lang="ca">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>IMITACIÓ RÍTMICA - Miquel Castellá</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- FontAwesome for Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Canvas Confetti -->
+    <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Fredoka:wght@400;600;700&display=swap');
+        
+        body {
+            font-family: 'Fredoka', sans-serif;
+            user-select: none;
+            -webkit-user-select: none;
+        }
+
+        .metronome-dot {
+            transition: background-color 0.05s ease, transform 0.05s ease, box-shadow 0.05s ease;
+        }
+        .metronome-dot.active {
+            background-color: #3b82f6;
+            transform: scale(1.35);
+            box-shadow: 0 0 12px #3b82f6;
+        }
+
+        .wave-bar {
+            transition: height 0.08s ease, opacity 0.08s ease;
+        }
+
+        /* Prevent scrollbars on compact layout */
+        html, body {
+            height: 100%;
+            overflow: hidden;
+        }
+    </style>
+</head>
+<body class="bg-slate-900 text-white h-screen flex flex-col justify-between p-2 md:p-3">
+
+    <!-- APP HEADER: TITLE & SUBTITLE -->
+    <header class="w-full max-w-2xl mx-auto text-center pt-1 pb-0.5">
+        <h1 class="text-xl md:text-2xl font-extrabold tracking-wider bg-gradient-to-r from-indigo-400 via-purple-300 to-pink-400 bg-clip-text text-transparent uppercase">
+            IMITACIÓ RÍTMICA
+        </h1>
+        <h2 class="text-xs md:text-sm font-semibold text-slate-400">
+            Miquel Castellá
+        </h2>
+    </header>
+
+    <!-- STATS BAR ULTRA COMPACT -->
+    <div class="w-full max-w-2xl mx-auto bg-slate-800/90 backdrop-blur rounded-xl px-3 py-1.5 border border-slate-700/60 shadow-md">
+        <div class="flex items-center justify-between text-xs md:text-sm">
+            
+            <!-- Level & XP -->
+            <div class="flex items-center space-x-2">
+                <span class="bg-indigo-600 text-white font-bold text-[10px] px-1.5 py-0.5 rounded uppercase">Niv <span id="levelDisplay">1</span></span>
+                <div class="w-16 md:w-24 bg-slate-700 rounded-full h-2 overflow-hidden border border-slate-600">
+                    <div id="xpBar" class="bg-gradient-to-r from-indigo-500 to-purple-500 h-full transition-all duration-300" style="width: 0%"></div>
+                </div>
+                <span id="xpText" class="text-[10px] text-slate-400 font-semibold">0/100</span>
+            </div>
+
+            <!-- Stats & Modals Buttons -->
+            <div class="flex items-center space-x-2">
+                <!-- Streak -->
+                <div class="flex items-center space-x-1 text-amber-400 font-bold" title="Ràtxa">
+                    <i class="fa-solid fa-fire text-amber-500 text-xs"></i>
+                    <span id="streakDisplay">0</span>
+                </div>
+
+                <!-- Coins -->
+                <div class="flex items-center space-x-1 text-yellow-400 font-bold" title="Monedes">
+                    <i class="fa-solid fa-coins text-yellow-500 text-xs"></i>
+                    <span id="coinsDisplay">0</span>
+                </div>
+
+                <!-- Modals Buttons -->
+                <button onclick="openModal('shopModal')" class="bg-emerald-600 hover:bg-emerald-500 text-white px-2 py-1 rounded-lg text-xs transition active:scale-95 shadow">
+                    <i class="fa-solid fa-store"></i>
+                </button>
+                <button onclick="openModal('badgesModal')" class="bg-purple-600 hover:bg-purple-500 text-white px-2 py-1 rounded-lg text-xs transition active:scale-95 shadow">
+                    <i class="fa-solid fa-trophy"></i>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- MAIN GAME AREA -->
+    <main class="w-full max-w-2xl mx-auto flex-1 flex flex-col justify-center my-1 space-y-2">
+
+        <!-- CONTROLS: Difficulty & BPM -->
+        <div class="bg-slate-800/60 rounded-xl px-3 py-1.5 border border-slate-700/50 flex items-center justify-between text-xs">
+            <!-- Difficulty -->
+            <div class="flex bg-slate-900/80 p-0.5 rounded-lg border border-slate-700/60 font-semibold">
+                <button id="diff-easy" onclick="setDifficulty('easy')" class="px-2.5 py-1 rounded-md transition bg-blue-600 text-white">Fàcil</button>
+                <button id="diff-medium" onclick="setDifficulty('medium')" class="px-2.5 py-1 rounded-md transition text-slate-400 hover:text-white">Mitjà</button>
+                <button id="diff-hard" onclick="setDifficulty('hard')" class="px-2.5 py-1 rounded-md transition text-slate-400 hover:text-white">Difícil</button>
+            </div>
+
+            <!-- BPM Slider -->
+            <div class="flex items-center space-x-1.5 bg-slate-900/80 px-2 py-1 rounded-lg border border-slate-700/60">
+                <i class="fa-solid fa-gauge-high text-indigo-400"></i>
+                <input id="bpmSlider" type="range" min="60" max="120" value="80" oninput="updateBPM(this.value)" class="w-16 md:w-24 accent-indigo-500 cursor-pointer">
+                <span id="bpmValue" class="font-bold text-indigo-400 w-12 text-right">80 BPM</span>
+            </div>
+        </div>
+
+        <!-- AUDIO DISPLAY & METRONOME -->
+        <div class="bg-slate-800/90 rounded-xl p-3 border border-slate-700/80 shadow-lg flex flex-col items-center justify-center space-y-2">
+            
+            <span id="statusBadge" class="px-3 py-0.5 rounded-full text-xs font-bold bg-slate-700 text-slate-300 border border-slate-600 uppercase">
+                Prem "Escoltar Ritme"
+            </span>
+            
+            <!-- 4 Pulse Dots -->
+            <div class="flex items-center space-x-3 py-0.5">
+                <div id="dot-0" class="metronome-dot w-3 h-3 rounded-full bg-slate-700 border border-slate-600"></div>
+                <div id="dot-1" class="metronome-dot w-3 h-3 rounded-full bg-slate-700 border border-slate-600"></div>
+                <div id="dot-2" class="metronome-dot w-3 h-3 rounded-full bg-slate-700 border border-slate-600"></div>
+                <div id="dot-3" class="metronome-dot w-3 h-3 rounded-full bg-slate-700 border border-slate-600"></div>
+            </div>
+
+            <!-- Wave Visualizer -->
+            <div class="h-8 flex items-center justify-center space-x-1 w-full max-w-xs">
+                <div class="wave-bar w-1.5 bg-indigo-500/40 rounded-full h-3"></div>
+                <div class="wave-bar w-1.5 bg-indigo-500/60 rounded-full h-5"></div>
+                <div class="wave-bar w-1.5 bg-indigo-500 rounded-full h-7"></div>
+                <div class="wave-bar w-1.5 bg-purple-500 rounded-full h-4"></div>
+                <div class="wave-bar w-1.5 bg-indigo-500 rounded-full h-8"></div>
+                <div class="wave-bar w-1.5 bg-purple-500/60 rounded-full h-5"></div>
+                <div class="wave-bar w-1.5 bg-indigo-500/40 rounded-full h-3"></div>
+            </div>
+
+            <!-- Listen Button -->
+            <button id="btnListen" onclick="startExerciseSequence()" class="bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-white font-bold px-5 py-2 rounded-xl border border-indigo-400/30 shadow transition transform active:scale-95 flex items-center space-x-2 text-xs md:text-sm">
+                <i class="fa-solid fa-volume-high"></i>
+                <span>Escoltar Ritme</span>
+            </button>
+        </div>
+
+        <!-- RHYTHM PAD -->
+        <div class="bg-slate-800/60 rounded-xl p-2 border border-slate-700/50 flex flex-col items-center">
+            <button id="rhythmPad" onmousedown="handleTap(event)" ontouchstart="handleTap(event)" disabled class="w-full max-w-md h-24 md:h-28 bg-slate-700/30 border-2 border-slate-600 rounded-xl flex flex-col items-center justify-center space-y-0.5 transition text-slate-500 cursor-not-allowed shadow-inner select-none">
+                <i class="fa-solid fa-drum text-2xl md:text-3xl"></i>
+                <span id="padText" class="font-bold text-xs md:text-sm">Escolta el ritme primer...</span>
+                <span class="text-[10px] opacity-60">O prem la Barra Espaiadora</span>
+            </button>
+        </div>
+
+    </main>
+
+    <!-- FOOTER -->
+    <footer class="w-full max-w-2xl mx-auto text-center text-[10px] text-slate-500 py-0.5">
+        IMITACIÓ RÍTMICA &copy; Miquel Castellá
+    </footer>
+
+    <!-- SUCCESS TOAST -->
+    <div id="successToast" class="fixed top-12 left-1/2 transform -translate-x-1/2 bg-emerald-600 text-white px-4 py-2 rounded-xl border border-emerald-400 shadow-2xl z-50 hidden text-center font-bold text-xs md:text-sm">
+        ¡Molt bé! Sincronització excel·lent.
+    </div>
+
+    <!-- ERROR OPTION MODAL -->
+    <div id="errorModal" class="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 z-50 hidden">
+        <div class="bg-slate-800 border border-slate-700 rounded-2xl max-w-xs w-full p-4 text-center space-y-3 shadow-2xl transform scale-100 transition">
+            <div class="w-12 h-12 bg-rose-500/20 border border-rose-500/40 text-rose-400 rounded-full flex items-center justify-center mx-auto text-xl">
+                <i class="fa-solid fa-xmark"></i>
+            </div>
+            
+            <div>
+                <h3 class="text-base font-bold text-rose-400">¡Gairebé!</h3>
+                <p id="errorModalText" class="text-xs text-slate-300 mt-1">El tempo o les pulsacions no han quadrat.</p>
+            </div>
+
+            <div class="flex flex-col space-y-2 pt-1">
+                <button onclick="retryCurrentPattern()" class="w-full bg-slate-700 hover:bg-slate-600 text-white font-bold py-2 rounded-xl border border-slate-500/40 text-xs transition flex items-center justify-center space-x-2">
+                    <i class="fa-solid fa-rotate-left"></i>
+                    <span>Tornar a intentar</span>
+                </button>
+                <button onclick="nextExerciseAndStart()" class="w-full bg-indigo-600 hover:bg-indigo-500 text-white font-bold py-2 rounded-xl border border-indigo-400/40 text-xs transition flex items-center justify-center space-x-2">
+                    <i class="fa-solid fa-forward"></i>
+                    <span>Següent exercici</span>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- SHOP MODAL -->
+    <div id="shopModal" class="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4 z-50 hidden">
+        <div class="bg-slate-800 border border-slate-700 rounded-2xl max-w-xs w-full p-4 space-y-3 shadow-2xl">
+            <div class="flex items-center justify-between border-b border-slate-700 pb-2">
+                <h3 class="text-sm font-bold flex items-center space-x-2 text-emerald-400">
+                    <i class="fa-solid fa-store"></i>
+                    <span>Kits de So</span>
+                </h3>
+                <button onclick="closeModal('shopModal')" class="text-slate-400 hover:text-white font-bold text-lg">&times;</button>
+            </div>
+            
+            <div class="space-y-2 max-h-56 overflow-y-auto">
+                <div class="bg-slate-900/60 p-2 rounded-xl border border-slate-700 flex items-center justify-between text-xs">
+                    <div>
+                        <div class="font-bold">Clàssic</div>
+                        <div class="text-[10px] text-slate-400">Palmes / Metrònom</div>
+                    </div>
+                    <button id="kit-btn-classic" onclick="selectSoundKit('classic')" class="bg-emerald-600 text-white text-[10px] px-2 py-1 rounded font-bold">Actiu</button>
+                </div>
+                <div class="bg-slate-900/60 p-2 rounded-xl border border-slate-700 flex items-center justify-between text-xs">
+                    <div>
+                        <div class="font-bold">Sintetitzador</div>
+                        <div class="text-[10px] text-slate-400">Electrònic</div>
+                    </div>
+                    <button id="kit-btn-synth" onclick="buyOrSelectKit('synth', 50)" class="bg-yellow-600 hover:bg-yellow-500 text-white text-[10px] px-2 py-1 rounded font-bold flex items-center space-x-1">
+                        <i class="fa-solid fa-coins"></i><span>50</span>
+                    </button>
+                </div>
+                <div class="bg-slate-900/60 p-2 rounded-xl border border-slate-700 flex items-center justify-between text-xs">
+                    <div>
+                        <div class="font-bold">Bateria Rock</div>
+                        <div class="text-[10px] text-slate-400">Caixa i bombo</div>
+                    </div>
+                    <button id="kit-btn-rock" onclick="buyOrSelectKit('rock', 100)" class="bg-yellow-600 hover:bg-yellow-500 text-white text-[10px] px-2 py-1 rounded font-bold flex items-center space-x-1">
+                        <i class="fa-solid fa-coins"></i><span>100</span>
+                    </button>
+                </div>
+                <div class="bg-slate-900/60 p-2 rounded-xl border border-slate-700 flex items-center justify-between text-xs">
+                    <div>
+                        <div class="font-bold">Percussió Llatina</div>
+                        <div class="text-[10px] text-slate-400">Congas</div>
+                    </div>
+                    <button id="kit-btn-latin" onclick="buyOrSelectKit('latin', 150)" class="bg-yellow-600 hover:bg-yellow-500 text-white text-[10px] px-2 py-1 rounded font-bold flex items-center space-x-1">
+                        <i class="fa-solid fa-coins"></i><span>150</span>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- BADGES MODAL -->
+    <div id="badgesModal" class="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4 z-50 hidden">
+        <div class="bg-slate-800 border border-slate-700 rounded-2xl max-w-xs w-full p-4 space-y-3 shadow-2xl">
+            <div class="flex items-center justify-between border-b border-slate-700 pb-2">
+                <h3 class="text-sm font-bold flex items-center space-x-2 text-purple-400">
+                    <i class="fa-solid fa-trophy"></i>
+                    <span>Medalles</span>
+                </h3>
+                <button onclick="closeModal('badgesModal')" class="text-slate-400 hover:text-white font-bold text-lg">&times;</button>
+            </div>
+            <div id="badgesList" class="grid grid-cols-2 gap-2 max-h-56 overflow-y-auto"></div>
+        </div>
+    </div>
+
+    <!-- JAVASCRIPT ENGINE -->
+    <script>
+        /* 1. DATABASE OF RHYTHMS */
+        const RHYTHM_DATABASE = {
+            easy: [
+                { beats: [1, 1, 1, 1] },
+                { beats: [1, 1, 2] },
+                { beats: [2, 1, 1] },
+                { beats: [0.5, 0.5, 1, 1, 1] },
+                { beats: [1, 0.5, 0.5, 1, 1] },
+                { beats: [1, 1, 0.5, 0.5, 1] },
+                { beats: [0.5, 0.5, 0.5, 0.5, 1, 1] },
+                { beats: [2, 2] }
+            ],
+            medium: [
+                { beats: [0.25, 0.25, 0.25, 0.25, 1, 1, 1] },
+                { beats: [1, 0.25, 0.25, 0.25, 0.25, 1, 1] },
+                { beats: [0.5, 0.5, 0.25, 0.25, 0.25, 0.25, 1, 1] },
+                { beats: [0.75, 0.25, 1, 1, 1] },
+                { beats: [0.5, 1, 0.5, 1, 1] }
+            ],
+            hard: [
+                { beats: [0.25, 0.5, 0.25, 0.5, 0.5, 1, 1] },
+                { beats: [0.75, 0.25, 0.25, 0.25, 0.5, 1, 1] },
+                { beats: [0.5, 0.25, 0.25, 0.5, 0.25, 0.25, 1, 1] },
+                { beats: [0.75, 0.25, 0.75, 0.25, 1, 1] }
+            ]
+        };
+
+        const BADGES_DATA = [
+            { id: 'first_win', name: 'Primer Ritme', desc: 'Completa 1 exercici', icon: 'fa-star', unlocked: false },
+            { id: 'streak_3', name: 'Ràtxa de Foc', desc: 'Ràtxa de 3 encerts', icon: 'fa-fire', unlocked: false },
+            { id: 'streak_10', name: 'Mestre Ritme', desc: 'Ràtxa de 10 encerts', icon: 'fa-bolt', unlocked: false },
+            { id: 'level_5', name: 'Oïda d\'Or', desc: 'Nivell 5 assolit', icon: 'fa-crown', unlocked: false }
+        ];
+
+        /* 2. STATE VARIABLES */
+        let audioCtx = null;
+        let currentDifficulty = 'easy';
+        let currentExerciseIndex = 0;
+        let bpm = 80;
+        
+        let activeSoundKit = 'classic';
+        let unlockedKits = ['classic'];
+
+        let xp = 0;
+        let level = 1;
+        let streak = 0;
+        let coins = 0;
+        let userBadges = [...BADGES_DATA];
+
+        // Engine State
+        let isSequenceActive = false;
+        let currentPhase = 'idle'; // 'idle', 'demo', 'repeat'
+        let scheduledTimeouts = [];
+
+        let expectedTimestamps = [];
+        let userTimestamps = [];
+        let sequenceStartTime = 0;
+        let userRepeatStartTime = 0;
+
+        /* 3. AUDIO SYNTHESIS & PRECISE CLOCK TIMING */
+        function initAudioContext() {
+            if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            if (audioCtx.state === 'suspended') audioCtx.resume();
+        }
+
+        function playSoundAtTime(type = 'rhythm', time = null) {
+            initAudioContext();
+            const now = (time !== null) ? time : audioCtx.currentTime;
+
+            if (type === 'metronome') {
+                const osc = audioCtx.createOscillator();
+                const gain = audioCtx.createGain();
+                osc.type = 'sine';
+                osc.frequency.setValueAtTime(800, now);
+                gain.gain.setValueAtTime(0.25, now);
+                gain.gain.exponentialRampToValueAtTime(0.001, now + 0.04);
+                osc.connect(gain);
+                gain.connect(audioCtx.destination);
+                osc.start(now);
+                osc.stop(now + 0.04);
+                return;
+            }
+
+            // Rhythm Sounds according to Kit
+            if (activeSoundKit === 'classic') {
+                const osc = audioCtx.createOscillator();
+                const gain = audioCtx.createGain();
+                osc.type = 'triangle';
+                osc.frequency.setValueAtTime(320, now);
+                osc.frequency.exponentialRampToValueAtTime(120, now + 0.12);
+                gain.gain.setValueAtTime(0.8, now);
+                gain.gain.exponentialRampToValueAtTime(0.001, now + 0.12);
+                osc.connect(gain);
+                gain.connect(audioCtx.destination);
+                osc.start(now);
+                osc.stop(now + 0.12);
+            } else if (activeSoundKit === 'synth') {
+                const osc = audioCtx.createOscillator();
+                const gain = audioCtx.createGain();
+                osc.type = 'sawtooth';
+                osc.frequency.setValueAtTime(520, now);
+                osc.frequency.exponentialRampToValueAtTime(200, now + 0.15);
+                gain.gain.setValueAtTime(0.7, now);
+                gain.gain.exponentialRampToValueAtTime(0.001, now + 0.15);
+                osc.connect(gain);
+                gain.connect(audioCtx.destination);
+                osc.start(now);
+                osc.stop(now + 0.15);
+            } else if (activeSoundKit === 'rock') {
+                const bufferSize = audioCtx.sampleRate * 0.1;
+                const buffer = audioCtx.createBuffer(1, bufferSize, audioCtx.sampleRate);
+                const data = buffer.getChannelData(0);
+                for (let i = 0; i < bufferSize; i++) data[i] = Math.random() * 2 - 1;
+                const noise = audioCtx.createBufferSource();
+                noise.buffer = buffer;
+                const filter = audioCtx.createBiquadFilter();
+                filter.type = 'highpass';
+                filter.frequency.value = 1000;
+                const gain = audioCtx.createGain();
+                gain.gain.setValueAtTime(0.8, now);
+                gain.gain.exponentialRampToValueAtTime(0.01, now + 0.1);
+                noise.connect(filter);
+                filter.connect(gain);
+                gain.connect(audioCtx.destination);
+                noise.start(now);
+            } else if (activeSoundKit === 'latin') {
+                const osc = audioCtx.createOscillator();
+                const gain = audioCtx.createGain();
+                osc.type = 'sine';
+                osc.frequency.setValueAtTime(450, now);
+                gain.gain.setValueAtTime(0.9, now);
+                gain.gain.exponentialRampToValueAtTime(0.001, now + 0.08);
+                osc.connect(gain);
+                gain.connect(audioCtx.destination);
+                osc.start(now);
+                osc.stop(now + 0.08);
+            }
+        }
+
+        /* 4. UNINTERRUPTED RHYTHM & METRONOME FLOW USING WEB AUDIO API SCHEDULING */
+        function startExerciseSequence() {
+            initAudioContext();
+            stopEngine();
+            closeModal('errorModal');
+
+            isSequenceActive = true;
+            currentPhase = 'demo';
+            userTimestamps = [];
+
+            updateUIState('demo');
+
+            const pattern = RHYTHM_DATABASE[currentDifficulty][currentExerciseIndex];
+            const beatSec = 60 / bpm;
+            const beatDurationMs = beatSec * 1000;
+
+            // Calculate expected timestamps relative to phase 2 start (in ms)
+            expectedTimestamps = [];
+            let cumulativeMs = 0;
+            pattern.beats.forEach(b => {
+                expectedTimestamps.push(cumulativeMs);
+                cumulativeMs += b * beatDurationMs;
+            });
+            const totalPatternMs = cumulativeMs;
+            const totalPatternSec = totalPatternMs / 1000;
+
+            // Start AudioContext clock timeline
+            const leadIn = 0.05; // tiny audio lead-in delay to prevent clicks
+            const startTime = audioCtx.currentTime + leadIn;
+            sequenceStartTime = startTime;
+            userRepeatStartTime = startTime + totalPatternSec;
+
+            // Schedule Demo Rhythm Sounds on Web Audio Timeline
+            let rhythmOffsetSec = 0;
+            pattern.beats.forEach(b => {
+                const noteTime = startTime + rhythmOffsetSec;
+                playSoundAtTime('rhythm', noteTime);
+                
+                // UI Wave animation trigger scheduled in JS
+                const delayMs = (noteTime - audioCtx.currentTime) * 1000;
+                const tId = setTimeout(() => {
+                    if (isSequenceActive && currentPhase === 'demo') {
+                        animateWaves();
+                    }
+                }, Math.max(0, delayMs));
+                scheduledTimeouts.push(tId);
+
+                rhythmOffsetSec += b * beatSec;
+            });
+
+            // Schedule Metronome Clicks & Dots (8 total beats: 4 for demo bar, 4 for repeat bar)
+            for (let pulse = 0; pulse < 8; pulse++) {
+                const clickTime = startTime + (pulse * beatSec);
+                playSoundAtTime('metronome', clickTime);
+
+                const delayMs = (clickTime - audioCtx.currentTime) * 1000;
+                const tId = setTimeout(() => {
+                    if (isSequenceActive) {
+                        highlightDot(pulse % 4);
+                    }
+                }, Math.max(0, delayMs));
+                scheduledTimeouts.push(tId);
+            }
+
+            // Transition to Repeat Phase exactly at start of bar 2 (beat 5)
+            const repeatPhaseDelayMs = (userRepeatStartTime - audioCtx.currentTime) * 1000;
+            const repeatTransitionId = setTimeout(() => {
+                if (isSequenceActive) {
+                    currentPhase = 'repeat';
+                    updateUIState('repeat');
+
+                    // Timeout to automatically end repetition if user finishes pattern
+                    const finishId = setTimeout(() => {
+                        if (isSequenceActive && currentPhase === 'repeat') {
+                            finishRepetition();
+                        }
+                    }, totalPatternMs + beatDurationMs);
+                    scheduledTimeouts.push(finishId);
+                }
+            }, Math.max(0, repeatPhaseDelayMs));
+            scheduledTimeouts.push(repeatTransitionId);
+        }
+
+        function stopEngine() {
+            isSequenceActive = false;
+            currentPhase = 'idle';
+            scheduledTimeouts.forEach(id => clearTimeout(id));
+            scheduledTimeouts = [];
+            resetVisuals();
+            updateUIState('idle');
+        }
+
+        function handleTap(e) {
+            if (e) e.preventDefault();
+            if (currentPhase !== 'repeat' || !audioCtx) return;
+
+            // Measure precision user tap time relative to beat 5 grid zero point
+            const currentAudioTime = audioCtx.currentTime;
+            const tapTimeMs = (currentAudioTime - userRepeatStartTime) * 1000;
+            userTimestamps.push(tapTimeMs);
+
+            playSoundAtTime('rhythm');
+            animatePad();
+
+            if (userTimestamps.length >= expectedTimestamps.length) {
+                const tId = setTimeout(() => {
+                    if (currentPhase === 'repeat') finishRepetition();
+                }, 150);
+                scheduledTimeouts.push(tId);
+            }
+        }
+
+        function finishRepetition() {
+            currentPhase = 'idle';
+            scheduledTimeouts.forEach(id => clearTimeout(id));
+            scheduledTimeouts = [];
+            resetVisuals();
+            updateUIState('idle');
+
+            evaluatePerformance();
+        }
+
+        /* 5. EVALUATION LOGIC WITH GRID-ALIGNED SYNCHRONIZATION */
+        function evaluatePerformance() {
+            if (userTimestamps.length === 0) {
+                showErrorModal("No s'ha detectat cap pulsació.");
+                return;
+            }
+
+            const expectedCount = expectedTimestamps.length;
+            const userCount = userTimestamps.length;
+
+            if (Math.abs(expectedCount - userCount) > 1) {
+                showErrorModal(`Has fet ${userCount} pulsacions i el ritme en tenia ${expectedCount}.`);
+                return;
+            }
+
+            // Dynamic tolerance window based on tempo BPM
+            const toleranceMs = Math.max(120, (60 / bpm) * 160);
+            let totalError = 0;
+            const countToCompare = Math.min(expectedCount, userCount);
+
+            for (let i = 0; i < countToCompare; i++) {
+                totalError += Math.abs(expectedTimestamps[i] - userTimestamps[i]);
+            }
+
+            const averageError = totalError / countToCompare;
+
+            if (averageError <= toleranceMs) {
+                const xpEarned = Math.max(15, Math.round(30 - (averageError / 10)));
+                const coinsEarned = 10;
+                
+                streak++;
+                addXP(xpEarned);
+                addCoins(coinsEarned);
+                checkBadges();
+
+                showSuccessToast();
+
+                // Auto advance to next pattern
+                const advanceId = setTimeout(() => {
+                    nextExercise();
+                    startExerciseSequence();
+                }, 1600);
+                scheduledTimeouts.push(advanceId);
+
+            } else {
+                streak = 0;
+                updateStatsUI();
+                showErrorModal("El tempo o les pulsacions no han quadrat.");
+            }
+        }
+
+        function retryCurrentPattern() {
+            closeModal('errorModal');
+            startExerciseSequence();
+        }
+
+        function nextExerciseAndStart() {
+            closeModal('errorModal');
+            nextExercise();
+            startExerciseSequence();
+        }
+
+        function nextExercise() {
+            const total = RHYTHM_DATABASE[currentDifficulty].length;
+            currentExerciseIndex = (currentExerciseIndex + 1) % total;
+        }
+
+        function setDifficulty(diff) {
+            if (currentDifficulty === diff) return;
+            currentDifficulty = diff;
+            currentExerciseIndex = 0;
+
+            ['easy', 'medium', 'hard'].forEach(d => {
+                const btn = document.getElementById(`diff-${d}`);
+                btn.className = (d === diff) 
+                    ? "px-2.5 py-1 rounded-md transition bg-blue-600 text-white font-bold"
+                    : "px-2.5 py-1 rounded-md transition text-slate-400 hover:text-white";
+            });
+
+            stopEngine();
+        }
+
+        /* 6. GAMIFICATION & MODALS */
+        function addXP(amount) {
+            xp += amount;
+            const xpNeeded = level * 100;
+            if (xp >= xpNeeded) {
+                xp -= xpNeeded;
+                level++;
+                confetti({ particleCount: 80, spread: 60, origin: { y: 0.6 } });
+            }
+            updateStatsUI();
+        }
+
+        function addCoins(amount) {
+            coins += amount;
+            updateStatsUI();
+        }
+
+        function checkBadges() {
+            userBadges.forEach(b => {
+                if (!b.unlocked) {
+                    if (b.id === 'first_win') b.unlocked = true;
+                    if (b.id === 'streak_3' && streak >= 3) b.unlocked = true;
+                    if (b.id === 'streak_10' && streak >= 10) b.unlocked = true;
+                    if (b.id === 'level_5' && level >= 5) b.unlocked = true;
+                }
+            });
+            renderBadges();
+        }
+
+        function buyOrSelectKit(kitId, cost) {
+            if (unlockedKits.includes(kitId)) {
+                selectSoundKit(kitId);
+            } else if (coins >= cost) {
+                coins -= cost;
+                unlockedKits.push(kitId);
+                selectSoundKit(kitId);
+                updateStatsUI();
+            } else {
+                showErrorModal("No tens suficients monedes!");
+            }
+            updateShopUI();
+        }
+
+        function selectSoundKit(kitId) {
+            activeSoundKit = kitId;
+            updateShopUI();
+        }
+
+        function updateShopUI() {
+            ['classic', 'synth', 'rock', 'latin'].forEach(k => {
+                const btn = document.getElementById(`kit-btn-${k}`);
+                if (!btn) return;
+                if (activeSoundKit === k) {
+                    btn.className = "bg-emerald-600 text-white text-[10px] px-2 py-1 rounded font-bold";
+                    btn.innerHTML = "Actiu";
+                } else if (unlockedKits.includes(k)) {
+                    btn.className = "bg-indigo-600 hover:bg-indigo-500 text-white text-[10px] px-2 py-1 rounded font-bold";
+                    btn.innerHTML = "Triar";
+                }
+            });
+        }
+
+        function renderBadges() {
+            const container = document.getElementById('badgesList');
+            if (!container) return;
+            container.innerHTML = '';
+
+            userBadges.forEach(b => {
+                const card = document.createElement('div');
+                card.className = `p-2 rounded-xl border flex flex-col items-center text-center space-y-0.5 ${
+                    b.unlocked 
+                    ? 'bg-purple-950/40 border-purple-500/50 text-white' 
+                    : 'bg-slate-900/40 border-slate-700/50 text-slate-500 opacity-50'
+                }`;
+                card.innerHTML = `
+                    <i class="fa-solid ${b.icon} text-lg ${b.unlocked ? 'text-yellow-400' : 'text-slate-600'}"></i>
+                    <div class="font-bold text-[10px]">${b.name}</div>
+                    <div class="text-[8px] opacity-80 leading-tight">${b.desc}</div>
+                `;
+                container.appendChild(card);
+            });
+        }
+
+        function updateStatsUI() {
+            document.getElementById('levelDisplay').innerText = level;
+            document.getElementById('streakDisplay').innerText = streak;
+            document.getElementById('coinsDisplay').innerText = coins;
+
+            const xpNeeded = level * 100;
+            const pct = Math.min(100, (xp / xpNeeded) * 100);
+            document.getElementById('xpBar').style.width = `${pct}%`;
+            document.getElementById('xpText').innerText = `${xp}/${xpNeeded}`;
+        }
+
+        /* 7. UI ANIMATIONS & MODALS */
+        function updateUIState(state) {
+            const badge = document.getElementById('statusBadge');
+            const btnListen = document.getElementById('btnListen');
+            const pad = document.getElementById('rhythmPad');
+            const padText = document.getElementById('padText');
+
+            if (state === 'demo') {
+                badge.className = "px-3 py-0.5 rounded-full text-xs font-bold bg-amber-500/20 text-amber-300 border border-amber-500/40 uppercase";
+                badge.innerText = "Escolta el ritme atentament...";
+                btnListen.disabled = true;
+                btnListen.classList.add('opacity-50', 'cursor-not-allowed');
+                pad.disabled = true;
+                pad.className = "w-full max-w-md h-24 md:h-28 bg-slate-700/20 border-2 border-slate-700 rounded-xl flex flex-col items-center justify-center space-y-0.5 text-slate-600 cursor-not-allowed shadow-inner select-none";
+                padText.innerText = "Escoltant ritme...";
+            } else if (state === 'repeat') {
+                badge.className = "px-3 py-0.5 rounded-full text-xs font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 uppercase";
+                badge.innerText = "¡El teu torn! Repeteix el ritme ara";
+                pad.disabled = false;
+                pad.className = "w-full max-w-md h-24 md:h-28 bg-gradient-to-b from-indigo-600/30 to-purple-600/30 border-2 border-indigo-500 rounded-xl flex flex-col items-center justify-center space-y-0.5 text-white cursor-pointer shadow-lg active:scale-98 select-none";
+                padText.innerText = "Toca ací o la Barra Espaiadora";
+            } else {
+                badge.className = "px-3 py-0.5 rounded-full text-xs font-bold bg-slate-700 text-slate-300 border border-slate-600 uppercase";
+                badge.innerText = "Prem \"Escoltar Ritme\"";
+                btnListen.disabled = false;
+                btnListen.classList.remove('opacity-50', 'cursor-not-allowed');
+                pad.disabled = true;
+                pad.className = "w-full max-w-md h-24 md:h-28 bg-slate-700/30 border-2 border-slate-600 rounded-xl flex flex-col items-center justify-center space-y-0.5 text-slate-500 cursor-not-allowed shadow-inner select-none";
+                padText.innerText = "Escolta el ritme primer...";
+            }
+        }
+
+        function highlightDot(index) {
+            for (let i = 0; i < 4; i++) {
+                const dot = document.getElementById(`dot-${i}`);
+                if (dot) dot.classList.remove('active');
+            }
+            const activeDot = document.getElementById(`dot-${index}`);
+            if (activeDot) activeDot.classList.add('active');
+        }
+
+        function resetVisuals() {
+            for (let i = 0; i < 4; i++) {
+                const dot = document.getElementById(`dot-${i}`);
+                if (dot) dot.classList.remove('active');
+            }
+        }
+
+        function animateWaves() {
+            const bars = document.querySelectorAll('.wave-bar');
+            bars.forEach(b => {
+                const h = Math.floor(Math.random() * 20) + 8;
+                b.style.height = `${h}px`;
+                setTimeout(() => b.style.height = '8px', 120);
+            });
+        }
+
+        function animatePad() {
+            const pad = document.getElementById('rhythmPad');
+            pad.classList.add('scale-95', 'border-white');
+            setTimeout(() => pad.classList.remove('scale-95', 'border-white'), 80);
+        }
+
+        function showSuccessToast() {
+            const toast = document.getElementById('successToast');
+            toast.classList.remove('hidden');
+            confetti({ particleCount: 30, spread: 40, origin: { y: 0.8 } });
+            setTimeout(() => toast.classList.add('hidden'), 1500);
+        }
+
+        function showErrorModal(msg) {
+            document.getElementById('errorModalText').innerText = msg;
+            openModal('errorModal');
+        }
+
+        function updateBPM(val) {
+            bpm = parseInt(val, 10);
+            document.getElementById('bpmValue').innerText = `${bpm} BPM`;
+        }
+
+        function openModal(id) {
+            document.getElementById(id).classList.remove('hidden');
+        }
+
+        function closeModal(id) {
+            document.getElementById(id).classList.add('hidden');
+        }
+
+        /* 8. EVENT LISTENERS */
+        window.addEventListener('keydown', (e) => {
+            if (e.code === 'Space') {
+                e.preventDefault();
+                if (currentPhase === 'repeat') {
+                    handleTap();
+                } else if (currentPhase === 'idle') {
+                    startExerciseSequence();
+                }
+            }
+        });
+
+        window.addEventListener('DOMContentLoaded', () => {
+            updateStatsUI();
+            renderBadges();
+            updateShopUI();
+        });
+    </script>
+</body>
+</html>
